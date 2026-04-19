@@ -1,0 +1,25 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+.DS_Store
+coverage
+.turbo
+*.log
+logs
+.cache
+.tmp
+tmp
+.tsx-cache
+.vite
+.vitest
+*.tsbuildinfo
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# Local editor / OS files
+.idea
+.vscode

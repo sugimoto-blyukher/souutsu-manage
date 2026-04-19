@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OAuthProvider {
+  google_health
+}
+
+enum MedicationLogStatus {
+  taken
+  skipped
+  delayed
+  missed
+}
+
+enum MedicationLogSource {
+  discord
+  manual
+  system
+}
+
+enum AlertType {
+  mania_risk
+  depression_risk
+  recovery_debt
+  medication_adherence
+  data_quality
+}
+
+enum AlertSeverity {
+  none
+  low
+  medium
+  high
+}
+
+enum DataQuality {
+  good
+  partial
+  missing
+  stale
+}
+
+model User {
+  id                String               @id @default(cuid())
+  discordUserId     String               @unique @map("discord_user_id")
+  googleSubjectId   String?              @unique @map("google_subject_id")
+  timezone          String
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  oauthConnections  OAuthConnection[]
+  medications       Medication[]
+  medicationLogs    MedicationLog[]
+  moodLogs          MoodLog[]
+  healthSummaries   HealthDailySummary[]
+  baselines         Baseline[]
+  alerts            Alert[]
+}
+
+model OAuthConnection {
+  id                    String        @id @default(cuid())
+  userId                String        @map("user_id")
+  provider              OAuthProvider
+  accessTokenEncrypted  String        @map("access_token_encrypted")
+  refreshTokenEncrypted String        @map("refresh_token_encrypted")
+  expiresAt             DateTime      @map("expires_at")
+  scopes                String[]
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, provider])
+}
+
+model Medication {
+  id             String          @id @default(cuid())
+  userId         String          @map("user_id")
+  name           String
+  doseLabel      String          @map("dose_label")
+  scheduleLabel  String          @map("schedule_label")
+  reminderTime   String          @map("reminder_time")
+  enabled        Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medicationLogs MedicationLog[]
+
+  @@index([userId, enabled])
+}
+
+model MedicationLog {
+  id           String              @id @default(cuid())
+  userId       String              @map("user_id")
+  medicationId String              @map("medication_id")
+  scheduledAt  DateTime            @map("scheduled_at")
+  status       MedicationLogStatus
+  recordedAt   DateTime            @map("recorded_at")
+  source       MedicationLogSource
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medication   Medication          @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, scheduledAt])
+}
+
+model MoodLog {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  date           DateTime
+  moodScore      Int      @map("mood_score")
+  energyScore    Int      @map("energy_score")
+  agitationScore Int      @map("agitation_score")
+  anxietyScore   Int      @map("anxiety_score")
+  note           String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model HealthDailySummary {
+  id                String      @id @default(cuid())
+  userId            String      @map("user_id")
+  date              DateTime
+  sleepMinutes      Int?        @map("sleep_minutes")
+  sleepStartAt      DateTime?   @map("sleep_start_at")
+  wakeAt            DateTime?   @map("wake_at")
+  steps             Int?
+  activeMinutes     Int?        @map("active_minutes")
+  restingHeartRate  Int?        @map("resting_heart_rate")
+  hrvRmssd          Float?      @map("hrv_rmssd")
+  dataQuality       DataQuality @map("data_quality")
+  source            String
+  createdAt         DateTime    @default(now()) @map("created_at")
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model Baseline {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  metricName   String   @map("metric_name")
+  windowDays   Int      @map("window_days")
+  meanValue    Float    @map("mean_value")
+  medianValue  Float    @map("median_value")
+  stddevValue  Float    @map("stddev_value")
+  validFrom    DateTime @map("valid_from")
+  validTo      DateTime @map("valid_to")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, metricName, validTo])
+}
+
+model Alert {
+  id             String        @id @default(cuid())
+  userId         String        @map("user_id")
+  alertType      AlertType     @map("alert_type")
+  severity       AlertSeverity
+  reasonsJson    Json          @map("reasons_json")
+  generatedAt    DateTime      @map("generated_at")
+  deliveredAt    DateTime?     @map("delivered_at")
+  acknowledgedAt DateTime?     @map("acknowledged_at")
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, generatedAt])
+}
